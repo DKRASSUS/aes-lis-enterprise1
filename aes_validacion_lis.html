@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AES O.S. - Validación Médica LIS</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <style>
+        :root {
+            --aes-blue: #00A8E8;
+            --aes-dark: #1A1A24;
+            --aes-purple: #6B21A8;
+            --bg-color: #F4F7F6;
+            --card-bg: #FFFFFF;
+            --text-main: #333333;
+            --border-color: #E2E8F0;
+            --success: #10B981;
+            --danger: #EF4444;
+            --warning: #F59E0B;
+        }
+
+        body { font-family: 'Inter', sans-serif; background-color: var(--bg-color); margin: 0; padding: 0; color: var(--text-main); height: 100vh; display: flex; flex-direction: column; }
+        
+        .topbar { background-color: var(--aes-dark); color: white; padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); z-index: 10; }
+        .topbar h2 { margin: 0; font-size: 1.2rem; font-weight: 800; letter-spacing: 0.5px; }
+        .topbar span { color: var(--aes-blue); }
+
+        .dashboard-container { max-width: 1450px; margin: 30px auto; display: grid; grid-template-columns: 350px 1fr; gap: 25px; padding: 0 20px; flex: 1; overflow: hidden; width: 100%; box-sizing: border-box;}
+
+        .panel { background: var(--card-bg); border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); padding: 25px; margin-bottom: 20px; }
+        .panel-blue { border-top: 4px solid var(--aes-blue); }
+        .panel-title { font-size: 1.1rem; font-weight: 800; margin-top: 0; margin-bottom: 20px; color: var(--aes-dark); text-transform: uppercase; border-bottom: 2px solid var(--border-color); padding-bottom: 10px; display: flex; justify-content: space-between; align-items: center;}
+
+        /* BANDEJA DE ENTRADA Y ARCHIVO HISTÓRICO */
+        .inbox-panel { display: flex; flex-direction: column; height: calc(100vh - 120px); padding: 0; overflow: hidden; border-top: 4px solid var(--aes-purple); }
+        .filter-controls { display: flex; background: #F8FAFC; border-bottom: 1px solid var(--border-color); }
+        .filter-btn { flex: 1; padding: 15px; border: none; background: transparent; font-weight: 700; color: #64748B; cursor: pointer; border-bottom: 3px solid transparent; transition: 0.2s; font-size: 0.9rem;}
+        .filter-btn:hover { color: var(--aes-dark); }
+        .filter-btn.active { color: var(--aes-purple); border-bottom-color: var(--aes-purple); background: white; }
+
+        .patient-list { overflow-y: auto; flex: 1; }
+        .patient-card { padding: 18px 20px; border-bottom: 1px solid var(--border-color); cursor: pointer; transition: all 0.2s; border-left: 4px solid transparent; background: white; }
+        .patient-card:hover { background: #F8FAFC; padding-left: 25px; }
+        .patient-card.active { background: #F3E8FF; border-left-color: var(--aes-purple); }
+        .patient-name { font-weight: 800; color: var(--aes-dark); margin-bottom: 8px; font-size: 0.95rem; }
+        .patient-meta { font-size: 0.75rem; color: #666; display: flex; justify-content: space-between; align-items: center; }
+        
+        .status-pill.pend { background: #FEF3C7; color: #D97706; padding: 3px 8px; border-radius: 4px; font-weight: 700; }
+        .status-pill.val { background: #D1FAE5; color: #065F46; padding: 3px 8px; border-radius: 4px; font-weight: 700; }
+
+        /* ÁREA DE REVISIÓN */
+        .review-area { display: flex; flex-direction: column; height: calc(100vh - 120px); overflow-y: auto; padding-right: 10px; }
+        .empty-state { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; color: #94A3B8; background: white; border-radius: 8px; border: 2px dashed var(--border-color); }
+        
+        .info-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
+        .info-item label { display: block; font-size: 0.75rem; font-weight: 600; color: #888; text-transform: uppercase; margin-bottom: 4px; }
+        .info-item span { display: block; font-size: 1rem; font-weight: 700; color: var(--aes-dark); }
+        .sample-id-badge { font-family: monospace; background: #E2E8F0; padding: 4px 8px; border-radius: 4px; color: var(--aes-blue); letter-spacing: 1px; }
+
+        /* Tablas de Pantalla */
+        .results-table { width: 100%; border-collapse: separate; border-spacing: 0; border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; }
+        .results-table th { background: #F8FAFC; padding: 15px 20px; font-size: 0.8rem; text-transform: uppercase; color: #64748B; font-weight: 800; border-bottom: 2px solid var(--border-color); text-align: left; }
+        .results-table td { padding: 15px 20px; border-bottom: 1px solid var(--border-color); font-size: 0.95rem; font-weight: 600; background: white;}
+        .test-name { color: var(--aes-dark); display: flex; align-items: center; gap: 10px; }
+        .test-icon { width: 8px; height: 8px; background: var(--aes-blue); border-radius: 50%; display: inline-block; }
+        .test-value { font-family: monospace; font-size: 1.1rem; color: var(--aes-dark); }
+        
+        .action-panel { display: flex; justify-content: flex-end; gap: 15px; background: transparent; padding: 0; border: none; margin-top: 20px;}
+        button.action-btn { padding: 15px 25px; border: none; border-radius: 6px; font-weight: 700; cursor: pointer; transition: 0.2s; font-size: 0.95rem; display: flex; align-items: center; gap: 8px; }
+        .btn-reject { background: white; border: 2px solid var(--danger); color: var(--danger); }
+        .btn-validate { background: var(--success); color: white; box-shadow: 0 4px 6px rgba(16, 185, 129, 0.2); }
+        .btn-validate:hover { background: #059669; transform: translateY(-2px); }
+        .btn-revert { background: white; border: 2px solid var(--warning); color: var(--warning); }
+        .btn-revert:hover { background: #FFFBEB; }
+        .btn-reprint { background: var(--aes-blue); color: white; }
+        .btn-reprint:hover { background: #0089bd; }
+
+        /* ==========================================
+           PLANTILLA PDF ESTILO VERIS (BANDA DE COLOR)
+           ========================================== */
+        #pdf-container { display: none; } 
+        #plantilla-pdf {
+            width: 800px;
+            padding: 40px;
+            background: white;
+            font-family: 'Inter', Helvetica, Arial, sans-serif;
+            color: #333;
+        }
+        .pdf-header { display: flex; justify-content: space-between; border-bottom: 4px solid var(--aes-blue); padding-bottom: 15px; margin-bottom: 15px; }
+        .pdf-patient-box { background: #F8FAFC; border: 1px solid var(--border-color); border-radius: 6px; padding: 15px; margin-bottom: 20px; font-size: 12px; display: grid; grid-template-columns: 1fr 1fr; line-height: 1.6; }
+        
+        /* Estilos de la tabla agrupada del PDF */
+        .pdf-banda-color { 
+            background: var(--aes-blue); 
+            color: white; 
+            padding: 8px 15px; 
+            font-weight: bold; 
+            font-size: 13px; 
+            margin-top: 15px; 
+            margin-bottom: 0; 
+            text-transform: uppercase; 
+        }
+        .pdf-table { width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 10px; }
+        .pdf-table th { text-align: left; padding: 8px 15px; border-bottom: 2px solid var(--border-color); color: #555; font-size: 10px; background: #F8FAFC; }
+        .pdf-table td { padding: 8px 15px; border-bottom: 1px solid #eee; }
+    </style>
+</head>
+<body>
+
+    <div class="topbar">
+        <h2>AES <span>O.S. Enterprise</span> - Centro de Validación LIS</h2>
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <span id="reloj" style="font-weight: 600; color: #C2E778; font-size: 0.9rem;"></span>
+        </div>
+    </div>
+
+    <div class="dashboard-container">
+        <!-- BANDEJA -->
+        <div class="panel inbox-panel">
+            <div class="filter-controls">
+                <button class="filter-btn active" id="btn-filtro-pendientes" onclick="cambiarFiltroBandeja('Pendientes')">📥 Pendientes</button>
+                <button class="filter-btn" id="btn-filtro-validados" onclick="cambiarFiltroBandeja('Validados')">🗄️ Validados</button>
+            </div>
+            <div class="patient-list" id="lista-pacientes"></div>
+        </div>
+
+        <!-- REVISIÓN -->
+        <div class="review-area">
+            <div class="empty-state" id="estado-vacio">
+                <h3 style="margin-bottom: 5px; color: var(--aes-dark);">Ningún reporte seleccionado</h3>
+                <p style="margin-top: 0;">Seleccione un tubo de la bandeja lateral.</p>
+            </div>
+
+            <div id="contenedor-resultados" style="display: none;">
+                <div class="panel panel-blue" style="padding-bottom: 15px;">
+                    <div class="info-grid">
+                        <div class="info-item"><label>Nombre Completo</label><span id="detalle-nombre">---</span></div>
+                        <div class="info-item"><label>ID de Muestra (Tubo)</label><span class="sample-id-badge" id="detalle-muestra">---</span></div>
+                        <div class="info-item"><label>Equipo Origen</label><span id="detalle-equipo">---</span></div>
+                    </div>
+                </div>
+
+                <div class="panel" style="padding-top: 10px;">
+                    <h3 class="panel-title">Resultados Analíticos <span id="badge-estado-visor" style="background: #E0F2FE; color: var(--aes-blue); padding: 4px 12px; border-radius: 20px; font-size: 0.75rem;">Pendiente Firma</span></h3>
+
+                    <table class="results-table">
+                        <thead><tr><th>Análisis Clínico</th><th>Valor Obtenido</th><th>Unidad</th></tr></thead>
+                        <tbody id="tabla-analitos"></tbody>
+                    </table>
+
+                    <div class="action-panel" id="botones-pendientes">
+                        <button class="action-btn btn-reject" onclick="rechazarMuestra()">✖ Rechazar</button>
+                        <button class="action-btn btn-validate" onclick="validarYGenerarPDF()">✔ Validar y Generar Informe Estructurado</button>
+                    </div>
+
+                    <div class="action-panel" id="botones-validados" style="display: none;">
+                        <button class="action-btn btn-revert" onclick="revertirValidacion()">↩ Revertir a Pendiente</button>
+                        <button class="action-btn btn-reprint" onclick="descargarSoloPDF()">🖨️ Re-imprimir Informe Estructurado</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PLANTILLA PDF (SE LLENARÁ DINÁMICAMENTE) -->
+    <div id="pdf-container">
+        <div id="plantilla-pdf">
+            <div class="pdf-header">
+                <div>
+                    <h1 style="margin:0; color: #1A1A24; font-size: 28px;">AES <span style="color: #00A8E8;">O.S.</span></h1>
+                    <p style="margin:0; font-size: 13px; color: #666; font-weight: bold;">LABORATORIO CLÍNICO AUTOMATIZADO</p>
+                    <p style="margin:0; font-size: 11px; color: #888;">Santa Cruz de la Sierra, Bolivia</p>
+                </div>
+                <div style="text-align: right;">
+                    <h2 style="margin:0; color: #00A8E8; font-size: 22px;">INFORME DE RESULTADOS</h2>
+                    <p style="margin:0; font-size: 12px; font-weight: bold;" id="pdf-fecha">Fecha: ---</p>
+                </div>
+            </div>
+
+            <div class="pdf-patient-box">
+                <div>
+                    <strong>Paciente:</strong> <span id="pdf-paciente">---</span><br>
+                    <strong>Identificación (CI):</strong> ---<br>
+                    <strong>ID de Muestra / Orden:</strong> <span id="pdf-orden">---</span>
+                </div>
+                <div>
+                    <strong>Médico Solicitante:</strong> A.E.S. Portal Web<br>
+                    <strong>Equipo Procesador:</strong> <span id="pdf-equipo">---</span><br>
+                    <strong>Estado:</strong> RESULTADOS VALIDADOS
+                </div>
+            </div>
+            
+            <!-- CONTENEDOR DINÁMICO PARA LAS BANDAS DE COLOR -->
+            <div id="pdf-resultados-dinamicos">
+                <!-- Javascript inyectará las secciones aquí -->
+            </div>
+            
+            <div style="margin-top: 50px; border-top: 1px solid #ccc; padding-top: 10px;">
+                <p style="font-size: 11px; margin: 0;"><strong>Firma Electrónica:</strong> Validado por LIS Middleware</p>
+                <p style="font-size: 9px; color: #888; margin-top: 5px;">Este informe fue procesado de forma automatizada por AES O.S. Enterprise. Los rangos de referencia dependen del método y reactivo utilizado.</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+    <script>
+        setInterval(() => { document.getElementById('reloj').innerText = new Date().toLocaleString(); }, 1000);
+
+        const firebaseConfig = { databaseURL: "https://lis-aes-default-rtdb.firebaseio.com" };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        let datosGlobales = {}; 
+        let pacienteSeleccionadoId = null;
+        let filtroActual = "Pendientes";
+
+        // --- MOTOR DE AGRUPACIÓN Y REFERENCIAS PARA EL PDF ---
+        const diccionarioLIS = {
+            "QUÍMICA SANGUÍNEA Y ENZIMAS": ["GLU", "UREA", "BUN", "CREA", "URI", "COL", "TRIG", "HDL", "LDL", "VLDL", "AST", "ALT", "ALP", "GGT", "LDH", "BT", "BD", "BI", "PT", "ALB", "CA", "P", "MG", "FE", "NA", "K", "CL", "AMIL", "LIP"],
+            "INMUNOLOGÍA Y HORMONAS": ["TSH", "FT4", "FT3", "T4", "T3", "FSH", "LH", "PRL", "E2", "PRG", "TESTO", "BHCG", "INS", "CORT", "FERR", "VITD", "VITB12", "FOL"],
+            "SEROLOGÍA E INFECCIOSAS": ["HBSAG", "HCV", "HIV", "SYPH", "CHAGAS", "TOXOG", "TOXOM", "DENG"],
+            "MARCADORES TUMORALES": ["PSA", "CEA", "CA125", "CA153", "CA199", "AFP"],
+            "HEMATOLOGÍA Y COAGULACIÓN": ["HEMO", "VSG", "RET", "TP", "INR", "TTPA", "FIB", "DDIM"]
+        };
+
+        const referenciasMOCK = {
+            "GLU": "70.0 - 110.0", "COL": "< 200.0", "TRIG": "< 150.0", "CREA": "0.6 - 1.2", "URI": "3.4 - 7.0",
+            "UREA": "15.0 - 45.0", "AST": "< 40.0", "ALT": "< 41.0", "TSH": "0.4 - 4.0", "FT4": "0.9 - 1.7", 
+            "HEMO": "4.5 - 10.0", "PSA": "< 4.0", "VITD": "30.0 - 100.0", "FERR": "30.0 - 400.0"
+        };
+
+        function obtenerInfoPrueba(prueba) {
+            let categoriaEncontrada = "OTROS EXÁMENES DE LABORATORIO";
+            for (const [cat, lista] of Object.entries(diccionarioLIS)) {
+                if (lista.includes(prueba.toUpperCase())) {
+                    categoriaEncontrada = cat;
+                    break;
+                }
+            }
+            let refEncontrada = referenciasMOCK[prueba.toUpperCase()] || "Referencia según método/inserto";
+            return { cat: categoriaEncontrada, ref: refEncontrada };
+        }
+
+        // CARGAR DATOS
+        db.ref("resultados").on("value", (snapshot) => {
+            if (snapshot.exists()) {
+                datosGlobales = snapshot.val();
+                renderizarBandeja();
+            }
+        });
+
+        function cambiarFiltroBandeja(nuevoFiltro) {
+            filtroActual = nuevoFiltro;
+            document.getElementById('btn-filtro-pendientes').classList.remove('active');
+            document.getElementById('btn-filtro-validados').classList.remove('active');
+            if(filtroActual === "Pendientes") document.getElementById('btn-filtro-pendientes').classList.add('active');
+            else document.getElementById('btn-filtro-validados').classList.add('active');
+
+            document.getElementById("estado-vacio").style.display = "flex";
+            document.getElementById("contenedor-resultados").style.display = "none";
+            pacienteSeleccionadoId = null;
+            renderizarBandeja();
+        }
+
+        function renderizarBandeja() {
+            const lista = document.getElementById("lista-pacientes");
+            lista.innerHTML = "";
+            let keysMostradas = 0;
+            const keys = Object.keys(datosGlobales).reverse();
+            
+            keys.forEach(key => {
+                const registro = datosGlobales[key];
+                const estaValidado = (registro.estado === "Validado_Final");
+
+                if ((filtroActual === "Pendientes" && !estaValidado) || (filtroActual === "Validados" && estaValidado)) {
+                    keysMostradas++;
+                    const pacienteName = registro.paciente || "Paciente Desconocido";
+                    const idMuestra = registro.muestra || "N/A";
+                    const claseActiva = (pacienteSeleccionadoId === key) ? "active" : "";
+                    const clasePill = estaValidado ? "val" : "pend";
+                    const textoPill = estaValidado ? "✔ Validado" : "Pendiente";
+
+                    lista.insertAdjacentHTML('beforeend', `
+                        <div class="patient-card ${claseActiva}" onclick="mostrarDetalle('${key}')" id="card-${key}">
+                            <div class="patient-name">${pacienteName}</div>
+                            <div class="patient-meta">
+                                <span>Tubo: <strong>${idMuestra}</strong></span>
+                                <span class="status-pill ${clasePill}">${textoPill}</span>
+                            </div>
+                        </div>`);
+                }
+            });
+
+            if (keysMostradas === 0) {
+                const mensaje = filtroActual === "Pendientes" ? "No hay muestras pendientes." : "No hay informes en el archivo histórico.";
+                lista.innerHTML = `<div style="padding: 30px; text-align: center; color: #888;">${mensaje}</div>`;
+            }
+        }
+
+        function mostrarDetalle(key) {
+            pacienteSeleccionadoId = key;
+            const registro = datosGlobales[key];
+            const estaValidado = (registro.estado === "Validado_Final");
+            
+            document.querySelectorAll('.patient-card').forEach(el => el.classList.remove('active'));
+            document.getElementById(`card-${key}`).classList.add('active');
+            document.getElementById("estado-vacio").style.display = "none";
+            document.getElementById("contenedor-resultados").style.display = "block";
+
+            if(estaValidado) {
+                document.getElementById('botones-pendientes').style.display = "none";
+                document.getElementById('botones-validados').style.display = "flex";
+                document.getElementById('badge-estado-visor').innerText = "✔ ARCHIVADO (SOLO LECTURA)";
+                document.getElementById('badge-estado-visor').style.color = "var(--success)";
+            } else {
+                document.getElementById('botones-pendientes').style.display = "flex";
+                document.getElementById('botones-validados').style.display = "none";
+                document.getElementById('badge-estado-visor').innerText = "Pendiente Firma";
+                document.getElementById('badge-estado-visor').style.color = "var(--aes-blue)";
+            }
+
+            document.getElementById("detalle-nombre").innerText = registro.paciente || "N/A";
+            document.getElementById("detalle-muestra").innerText = registro.muestra || "N/A";
+            document.getElementById("detalle-equipo").innerText = registro.equipo || "Analizador LIS";
+
+            document.getElementById("pdf-paciente").innerText = registro.paciente || "N/A";
+            document.getElementById("pdf-orden").innerText = registro.muestra || "N/A";
+            document.getElementById("pdf-equipo").innerText = registro.equipo || "N/A";
+            document.getElementById("pdf-fecha").innerText = registro.fecha_validacion ? new Date(registro.fecha_validacion).toLocaleString() : new Date().toLocaleString();
+
+            const tablaLIS = document.getElementById("tabla-analitos");
+            const contPDF = document.getElementById("pdf-resultados-dinamicos");
+            tablaLIS.innerHTML = "";
+            contPDF.innerHTML = "";
+
+            const resultadosBrutos = registro.resultados_totales || registro.resultados || registro.resultaos || "";
+
+            if(resultadosBrutos !== "") {
+                const lineasAnalitos = resultadosBrutos.split('~');
+                let resultadosAgrupados = {};
+                
+                // 1. LEER Y AGRUPAR DATOS
+                lineasAnalitos.forEach(linea => {
+                    if(linea.trim() === "") return; 
+                    const partes = linea.split(':');
+                    const nombrePrueba = partes[0].trim();
+                    let valorUnidad = partes.slice(1).join(':').trim(); 
+                    
+                    let valorNum = valorUnidad;
+                    let unidadStr = "";
+                    const sep = valorUnidad.indexOf(' ');
+                    if(sep > -1) {
+                        valorNum = valorUnidad.substring(0, sep).trim();
+                        unidadStr = valorUnidad.substring(sep).trim();
+                    }
+
+                    // A) Llenar la pantalla web normal
+                    tablaLIS.insertAdjacentHTML('beforeend', `
+                        <tr>
+                            <td class="test-name"><span class="test-icon"></span> ${nombrePrueba}</td>
+                            <td class="test-value">${valorNum}</td>
+                            <td><span class="unit-badge">${unidadStr || '-'}</span></td>
+                        </tr>
+                    `);
+
+                    // B) Clasificar para el PDF
+                    const infoPrueba = obtenerInfoPrueba(nombrePrueba);
+                    if(!resultadosAgrupados[infoPrueba.cat]) {
+                        resultadosAgrupados[infoPrueba.cat] = [];
+                    }
+                    resultadosAgrupados[infoPrueba.cat].push({
+                        nombre: nombrePrueba,
+                        valor: valorNum,
+                        unidad: unidadStr,
+                        ref: infoPrueba.ref
+                    });
+                });
+
+                // 2. CONSTRUIR EL PDF AGRUPADO
+                Object.keys(resultadosAgrupados).forEach(categoria => {
+                    let htmlSeccion = `
+                        <div class="pdf-banda-color">${categoria}</div>
+                        <table class="pdf-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 30%;">EXAMEN</th>
+                                    <th style="width: 20%;">RESULTADO</th>
+                                    <th style="width: 20%;">UNIDAD</th>
+                                    <th style="width: 30%;">RANGO DE REFERENCIA</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                    `;
+
+                    resultadosAgrupados[categoria].forEach(res => {
+                        htmlSeccion += `
+                            <tr>
+                                <td style="font-weight: bold;">${res.nombre}</td>
+                                <td style="font-family: monospace; font-size: 13px; font-weight: bold;">${res.valor}</td>
+                                <td style="color: #666;">${res.unidad || '-'}</td>
+                                <td style="color: #888; font-size: 11px;">${res.ref}</td>
+                            </tr>
+                        `;
+                    });
+
+                    htmlSeccion += `</tbody></table>`;
+                    contPDF.insertAdjacentHTML('beforeend', htmlSeccion);
+                });
+
+            } else {
+                tablaLIS.innerHTML = `<tr><td colspan="3" style="text-align: center; padding: 20px;">Sin resultados</td></tr>`;
+                contPDF.innerHTML = `<p>No hay resultados analíticos disponibles para imprimir.</p>`;
+            }
+        }
+
+        function descargarSoloPDF(forzarValidacion = false) {
+            const btn = document.querySelector(forzarValidacion ? '.btn-validate' : '.btn-reprint');
+            const textoOriginal = btn.innerHTML;
+            btn.innerHTML = "⏳ Generando Informe...";
+
+            const pdfWrapper = document.getElementById('pdf-container');
+            const elementoPlantilla = document.getElementById('plantilla-pdf');
+            
+            pdfWrapper.style.display = 'block';
+            pdfWrapper.style.position = 'absolute';
+            pdfWrapper.style.zIndex = '-100';
+
+            const nombreArchivo = `Informe_AES_${document.getElementById('pdf-paciente').innerText.replace(/\s+/g, '_')}.pdf`;
+            const opt = {
+                margin:       10,
+                filename:     nombreArchivo,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2 },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            html2pdf().set(opt).from(elementoPlantilla).save().then(() => {
+                pdfWrapper.style.display = 'none';
+                btn.innerHTML = textoOriginal;
+
+                if(forzarValidacion) {
+                    db.ref("resultados/" + pacienteSeleccionadoId).update({
+                        estado: "Validado_Final",
+                        fecha_validacion: new Date().toISOString()
+                    }).then(() => {
+                        alert(`¡Éxito! Informe estructurado descargado. Muestra archivada en Validados.`);
+                    });
+                }
+            });
+        }
+
+        function validarYGenerarPDF() {
+            if(!pacienteSeleccionadoId) return;
+            if(confirm("¿Confirma la liberación médica de este informe?")) {
+                descargarSoloPDF(true);
+            }
+        }
+
+        function revertirValidacion() {
+            if(!pacienteSeleccionadoId) return;
+            if(confirm("¿Regresar informe a la bandeja de Pendientes?")) {
+                db.ref("resultados/" + pacienteSeleccionadoId).update({ estado: "Pendiente Validacion" }).then(() => {
+                    document.getElementById("estado-vacio").style.display = "flex";
+                    document.getElementById("contenedor-resultados").style.display = "none";
+                    pacienteSeleccionadoId = null;
+                });
+            }
+        }
+
+        function rechazarMuestra() { alert("Muestra marcada para repetición."); }
+    </script>
+</body>
+</html>
